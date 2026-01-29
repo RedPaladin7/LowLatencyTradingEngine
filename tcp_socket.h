@@ -28,11 +28,11 @@ namespace Common {
         TCPSocket &operator=(const TCPSocket &) = delete;
         TCPSocket &operator=(const TCPSocket &&) = delete;
 
-        int socket_fd = -1;
+        int socket_fd_ = -1;
         vector<char> outbound_data_;
-        size_t next_send_valid_index = 0;
+        size_t next_send_valid_index_ = 0;
         vector<char> inbound_data_;
-        size_t next_rcv_valid_index = 0;
+        size_t next_rcv_valid_index_ = 0;
 
         struct sockaddr_in socket_attrib_{};
         function<void(TCPSocket *s, Nanos rx_time)> recv_callback_ = nullptr;
