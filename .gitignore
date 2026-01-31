@@ -1,0 +1,15 @@
+# Build directories
+cmake-build-*/
+build/
+bin/
+obj/
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# Executables
+socket_example

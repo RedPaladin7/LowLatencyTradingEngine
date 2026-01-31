@@ -4,14 +4,14 @@ using namespace std;
 namespace Common {
     auto TCPServer::addToEpollList(TCPSocket *socket) {
         epoll_event ev {
-            EPOLLET || EPOLLIN,
+            EPOLLET | EPOLLIN,
             {reinterpret_cast<void *>(socket)}
         };
         return !epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, socket->socket_fd_, &ev);
     }
 
     auto TCPServer::listen(const string &iface, int port) -> void {
-        epoll_fd_ = epoll_create1(1);
+        epoll_fd_ = epoll_create(1);
         ASSERT(epoll_fd_ >= 0, "epoll_create() failed error:" + string(strerror(errno)));
         ASSERT(listener_socket_.connect("", iface, port, true) >= 0, "Listener socket failed to connect. iface:" + iface + " port:" + to_string(port) + " error:" + string(strerror(errno)));
         ASSERT(addToEpollList(&listener_socket_), "epoll_ctl() failed. error:" + string(strerror(errno)));

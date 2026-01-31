@@ -111,7 +111,7 @@ namespace Common {
 
         int socket_fd = -1;
         int one = 1;
-        for(addrinfo *rp = result; rp; rp->ai_next) {
+        for(addrinfo *rp = result; rp; rp=rp->ai_next) {
             ASSERT((socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol)) != -1, "socket() failed. errno:" + std::string(strerror(errno)));
 
             ASSERT(setNonBlocking(socket_fd), "setNonBlocking() failed. errno:" + std::string(strerror(errno)));
