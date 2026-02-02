@@ -23,7 +23,7 @@ namespace Exchange {
 
         auto cancel(ClientId client_id, OrderId order_id, TickerId ticker_id) noexcept -> void;
 
-        auto toString(bool detailed, bool validityCheck);
+        auto toString(bool detailed, bool validity_check) const -> string;
 
         MEOrderBook() = delete;
         MEOrderBook(const MEOrderBook &) = delete;
@@ -109,8 +109,8 @@ namespace Exchange {
                     target->prev_entry_= new_orders_at_price;
 
                     if (
-                        (new_orders_at_price->side_ == Side::SELL && new_orders_at_price->price_ > target->price_) || 
-                        (new_orders_at_price->side_ == Side::BUY && new_orders_at_price->price_ < target->price_)
+                        (new_orders_at_price->side_ == Side::BUY && new_orders_at_price->price_ > target->price_) || 
+                        (new_orders_at_price->side_ == Side::SELL && new_orders_at_price->price_ < target->price_)
                     ){
                         target->next_entry_ = (target->next_entry_ == best_orders_by_price ? new_orders_at_price : target->next_entry_);
                         (new_orders_at_price->side_ == Side::BUY ? bids_by_price_ : bids_by_price_) = new_orders_at_price;
@@ -174,7 +174,6 @@ namespace Exchange {
         
         auto addOrder(MEOrder *order) noexcept {
             const auto orders_at_price = getOrdersAtPrice(order->price_);
-
 
             if(!orders_at_price){
                 order->next_order_ = order->prev_order_ = order;
