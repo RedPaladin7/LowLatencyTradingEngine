@@ -62,7 +62,7 @@ namespace Exchange {
         }
 
     private:
-        // OrderBookHashMap ticker_order_book_;
+        OrderBookHashMap ticker_order_book_;
         ClientRequestLFQueue *incoming_requests_ = nullptr;
         ClientResponseLFQueue *outgoing_ogw_responses_ = nullptr;
         MEMarketUpdateLFQueue *outgoing_md_updates_ = nullptr;
