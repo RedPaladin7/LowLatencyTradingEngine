@@ -3,10 +3,11 @@
 
 namespace Exchange {
     MEOrderBook::MEOrderBook(TickerId ticker_id, Logger *logger, MatchingEngine *matching_engine)
-    : ticker_id_(ticker_id), logger_(logger), matching_engine_(matching_engine), order_pool_(ME_MAX_ORDER_IDS), orders_at_price_pool_(ME_MAX_PRICE_LEVELS) {}
+    : ticker_id_(ticker_id), matching_engine_(matching_engine), logger_(logger), orders_at_price_pool_(ME_MAX_PRICE_LEVELS), order_pool_(ME_MAX_ORDER_IDS) {}
 
     MEOrderBook::~MEOrderBook() {
-        // log 
+        logger_->log("%:% %() % OrderBook\n%\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
+                toString(false, true));
         matching_engine_ = nullptr;
         bids_by_price_ = asks_by_price_ = nullptr;
         for (auto &itr: cid_oid_to_order_) {
@@ -126,7 +127,7 @@ namespace Exchange {
 
         if(LIKELY(leaves_qty)) {
             const auto priority = getNextPriority(price);
-            auto order = order_pool_.allocate(ticker_id, client_id, client_order_id, new_market_order_id, side, price, leaves_qty, priority, nullptr);
+            auto order = order_pool_.allocate(ticker_id, client_id, client_order_id, new_market_order_id, side, price, leaves_qty, priority, nullptr, nullptr);
             addOrder(order);
 
             market_update_ = {

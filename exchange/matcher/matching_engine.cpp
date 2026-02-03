@@ -8,7 +8,9 @@ namespace Exchange {
         outgoing_ogw_responses_(client_responses),
         outgoing_md_updates_(market_updates),
         logger_("exchange_matching_engine.log") {
-        // todo 
+        for(size_t i=0; i<ticker_order_book_.size(); i++){
+            ticker_order_book_[i] = new MEOrderBook(i, &logger_, this);
+        }
     }
 
     MatchingEngine::~MatchingEngine() {
@@ -21,7 +23,10 @@ namespace Exchange {
         outgoing_ogw_responses_ = nullptr;
         outgoing_md_updates_ = nullptr;
 
-        // for loop 
+        for(auto &order_book : ticker_order_book_){
+            delete order_book;
+            order_book = nullptr;
+        }
     }
 
     auto MatchingEngine::start() -> void {
