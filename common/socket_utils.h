@@ -23,11 +23,11 @@ using namespace std;
 
 namespace Common {
     struct SocketCfg{
-        string ip_; 
-        string iface_;
-        int port_ = -1;
+        string ip_; // address of device on network to connect to   
+        string iface_; // physical/virtual network connection point (eg wifi, eth)
+        int port_ = -1; // endpoint specifying service on device
         bool is_udp_ = false;
-        bool is_listening_ = false;
+        bool is_listening_ = false; // is server or not
         bool needs_so_timestamp_ = false;
 
         auto toString() const {
@@ -46,14 +46,20 @@ namespace Common {
 
     constexpr int MaxTCPServerBacklog = 1024;
 
+    // returns ip address assigned to given interface, used if ip address is not given directly
     inline auto getIfaceIP(const string &iface) -> string {
         char buf[NI_MAXHOST] = {'\0'};
-        ifaddrs *ifaddr = nullptr; 
+        ifaddrs *ifaddr = nullptr; // contains info on single network interface 
+        // is part of linked list, points to next network if on the device
 
-        if(getifaddrs(&ifaddr)!=-1) {
+        if(getifaddrs(&ifaddr)!=-1) { 
+            // getifaddrs() gets all network interfaces, assign it to ifaddr (0 on succcess)
             for(ifaddrs *ifa = ifaddr; ifa; ifa = ifa->ifa_next){
                 if(ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_INET && iface == ifa->ifa_name){
+                    // look for iface with given name 
+                    // AF_INET -> ipv4 address
                     getnameinfo(ifa->ifa_addr, sizeof(sockaddr_in), buf, sizeof(buf), NULL, 0, NI_NUMERICHOST);
+                    // convert to human readable string and store in buf
                     break;
                 }
             }
@@ -62,12 +68,16 @@ namespace Common {
         return buf;
     }
 
+    // thread does not wait if there is not data when read() is called
+    // returns immediately with error message
     inline auto setNonBlocking(int fd) -> bool {
-        const auto flags = fcntl(fd, F_GETFL, 0);
-        if (flags & O_NONBLOCK) return true; 
-        return (fcntl(fd, F_SETFL, flags | O_NONBLOCK)!=-1);
+        const auto flags = fcntl(fd, F_GETFL, 0); // get flags for the current file descriptor
+        if (flags & O_NONBLOCK) return true; // if already non blocking do nothing
+        return (fcntl(fd, F_SETFL, flags | O_NONBLOCK)!=-1); // set non blocking
     }
 
+    // nagle -> batch small packets together to save bandwidth (no sending many headers)
+    // problem -> we have to wait a bit for batching
     inline auto disableNagle(int fd) -> bool {
         int one = 1;
         return (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<void *>(&one), sizeof(one))!=-1);
@@ -78,21 +88,26 @@ namespace Common {
         return (setsockopt(fd, SOL_SOCKET, SO_TIMESTAMP, reinterpret_cast<void *>(&one), sizeof(one))!=-1);
     }
 
+    // joins multicast group -> one sender, many recv
+    // sender sends one packet to multicast address, network duplicated and sends to all subscribers
     inline auto join(int fd, const string &ip) -> bool {
         const ip_mreq mreq{
-            {inet_addr(ip.c_str())},
-            {htonl(INADDR_ANY)}
+            {inet_addr(ip.c_str())}, // the multicast group to join
+            {htonl(INADDR_ANY)} // any interface
         };
         return (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq))!=-1);
     }
 
+    // creates socket and returns file descriptor
     [[nodiscard]] inline auto createSocket(Logger &logger, const SocketCfg& socket_cfg) -> int {
         string time_str;
+        // get ip using function if not already provided 
         const auto ip = socket_cfg.ip_.empty() ? getIfaceIP(socket_cfg.iface_) : socket_cfg.ip_;
         logger.log("%:% %() % cfg:%\n", __FILE__, __LINE__, __FUNCTION__,
                Common::getCurrentTimeStr(&time_str), socket_cfg.toString());
+        // passive if server, ip and port are numeric do not do lookup 
         const int input_flags = (socket_cfg.is_listening_ ? AI_PASSIVE : 0) | (AI_NUMERICHOST | AI_NUMERICSERV);
-        const addrinfo hints{
+        const addrinfo hints{ // addrinfo describes socket config
             input_flags,
             AF_INET,
             socket_cfg.is_udp_? SOCK_DGRAM : SOCK_STREAM,
@@ -100,6 +115,8 @@ namespace Common {
             0, 0, nullptr
         };
 
+        // converts ip + port to binary socket address structure
+        // result populated with addrinfo link list (usually has only one element)
         addrinfo *result = nullptr;
         const auto rc = getaddrinfo(
             ip.c_str(), 
@@ -112,6 +129,7 @@ namespace Common {
         int socket_fd = -1;
         int one = 1;
         for(addrinfo *rp = result; rp; rp=rp->ai_next) {
+            // create socket -> needs family, type, and protocol
             ASSERT((socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol)) != -1, "socket() failed. errno:" + std::string(strerror(errno)));
 
             ASSERT(setNonBlocking(socket_fd), "setNonBlocking() failed. errno:" + std::string(strerror(errno)));
@@ -120,10 +138,12 @@ namespace Common {
                 ASSERT(disableNagle(socket_fd), "disableNagle() failed. errno:" + std::string(strerror(errno)));
             }
 
+            // if not server then connect to given ip
             if(!socket_cfg.is_listening_) {
                 ASSERT(connect(socket_fd, rp->ai_addr, rp->ai_addrlen), "connect() failed. errno:" + std::string(strerror(errno)));
             }
 
+            // if server, allow port reuse immediately after crashing
             if(socket_cfg.is_listening_) {
                 ASSERT(setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<void *>(&one), sizeof(one))!=-1, "setsockopt() SO_REUSEADDR failed. errno:" + std::string(strerror(errno)));
             }

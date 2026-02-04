@@ -10,6 +10,8 @@
 #include "time_utils.h"
 using namespace std;
 
+// Pushes data into lock free queue, disk writing IO operation done by seperate thread
+
 namespace Common {
     constexpr size_t LOG_QUEUE_SIZE = 8 * 1024 * 1024;
 
@@ -23,10 +25,10 @@ namespace Common {
         UNSIGNED_LONG_LONG_INTEGER = 6,
         FLOAT = 7,
         DOUBLE = 8,
-    };
+    }; // tells the consumer the how to interpret data 
 
     struct LogElement {
-        LogType type_ = LogType::CHAR;
+        LogType type_ = LogType::CHAR; // one entry can only have one data type
         union {
             char c;
             int i;
@@ -38,7 +40,7 @@ namespace Common {
             float f;
             double d;
         } u_;
-    };
+    }; // different data types share the same memory space
 
     class Logger final {
         public:
@@ -77,15 +79,19 @@ namespace Common {
                     queue_.updateReadIndex();
                 }
                 file_.flush();
+                // file_ is of type std::ofstream, has internal buffer, stores data and writes in chunks
+                // flush() forces it to write data currently in the buffer
 
                 using namespace literals::chrono_literals;
-                this_thread::sleep_for(10ms);
+                this_thread::sleep_for(10ms); // flushes every 10ms
             }
         }
 
+        // input: name of the log file
         explicit Logger(const string &file_name): file_name_(file_name), queue_(LOG_QUEUE_SIZE) {
             file_.open(file_name);
             ASSERT(file_.is_open(), "Could not open file:" + file_name);
+            // starting thread and assigning it function for periodic flushing
             logger_thread_ = createAndStartThread(-1, "Common/Logger " + file_name_, [this]() {flushQueue();});
             ASSERT(logger_thread_ != nullptr, "Could not create logger thread");
         } 
@@ -94,7 +100,7 @@ namespace Common {
             string time_str;
             cerr << Common::getCurrentTimeStr(&time_str) << " flushing and closing logger for " << file_name_ << endl;
             running_ = false;
-            logger_thread_->join();
+            logger_thread_->join(); // waits for background to finish
             file_.close();
             cerr << Common::getCurrentTimeStr(&time_str) << " Logger for " << file_name_ << " exiting." << std::endl;
         }
@@ -151,8 +157,10 @@ namespace Common {
             pushValue(value.c_str());
         }
 
-        template<typename T, typename... A>
+        template<typename T, typename... A> 
         auto log(const char *s, const T &value, A... args) noexcept {
+            // allows for writing data with multiple formatted values
+            // T: type of the next element to be logged, A: remaning params in the statement
             while(*s) {
                 if (*s == '%') {
                     if (UNLIKELY(*(s+1) == '%')){
@@ -168,6 +176,7 @@ namespace Common {
             FATAL("extra arguments provided to log()");
         }
 
+        // use this version of log when the params are only string values
         auto log(const char *s) noexcept {
             while(*s) {
                 if(*s == '%') {

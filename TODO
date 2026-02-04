@@ -1,1 +1,17 @@
-- matching engine wip
+- function forwarding in thread_utils
+
+Info:
+
+Lock free queue
+- underlying data structure -> vector<T>
+- Get next read function returns the actual object at next read index
+
+Mem Pool:
+- underlying data structure -> vector<ObjectBlock>
+
+Socket:
+- disable nagle -> ip protocol level 
+- timestamp -> socket level 
+- join multicast ->ip protocol level 
+- reuse addr -> socket level
+- socket() function takes as params -> family, socket type, protocol

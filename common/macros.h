@@ -4,6 +4,8 @@
 #include <iostream>
 using namespace std;
 
+// Compiler hints to optimize branch predictions
+
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 

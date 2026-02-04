@@ -7,30 +7,36 @@
 #include "macros.h"
 using namespace std;
 
+// Used to preallocate large pools of memeory 
+// Avoid high cost frequent memory allocations
+
 namespace Common {
     template<typename T>
     class MemPool final {
         public:
+        // one takes one param -> size of the mem pool 
         explicit MemPool(size_t num_elems): store_(num_elems, {T(), true}) {
             ASSERT(reinterpret_cast<const ObjectBlock *>(&(store_[0].object_)) == &(store_[0]), "T object must be the first member of ObjectBlock");
         }
 
         template<typename... Args> 
         T *allocate(Args ...args) noexcept {
-            auto obj_block = &(store_[next_free_index_]);
-            ASSERT(obj_block->is_free_, "Expected fee ObjectBlock at index:" + to_string(next_free_index_));
-            T *ret = &(obj_block->object_);
-            ret = new(ret) T(args...);
+            auto obj_block = &(store_[next_free_index_]); // get next free ObjectBlock
+            ASSERT(obj_block->is_free_, "Expected free ObjectBlock at index:" + to_string(next_free_index_));
+            T *ret = &(obj_block->object_); // pointer to object_ inside current ObjectBlock
+            ret = new(ret) T(args...); // placement new, run constructor of T and memory address of ret
             obj_block->is_free_ = false;
             updateNextFreeIndex();
             return ret;
         }
 
         auto deallocate(const T *elem) noexcept {
+            // Convert T to ObjectBlock pointer 
+            // possible because T is first member of ObjectBlock, will point to the same location
             const auto elem_index = (reinterpret_cast<const ObjectBlock *>(elem) - &store_[0]);
             ASSERT(elem_index >= 0 && static_cast<size_t>(elem_index) < store_.size(), "Element being deallocated does not belong to this Memory pool.");
             ASSERT(!store_[elem_index].is_free_, "Expected in-use ObjectBlock at index:" + std::to_string(elem_index));
-            store_[elem_index].is_free_ = true;
+            store_[elem_index].is_free_ = true; // the object is still there, but is marked as free, can be overwritten
         }
 
         MemPool() = delete;
@@ -42,6 +48,7 @@ namespace Common {
         private:
         auto updateNextFreeIndex() noexcept {
             const auto initial_free_index = next_free_index_;
+            // iterate until you get ObjectBlock marked as free
             while(!store_[next_free_index_].is_free_) {
                 ++next_free_index_;
                 if(UNLIKELY(next_free_index_ == store_.size())) {
@@ -60,6 +67,6 @@ namespace Common {
 
         vector<ObjectBlock> store_;
         size_t next_free_index_ = 0;
-
+        // will be typically used by only one thread so no atomic variable needed
     };
 }
