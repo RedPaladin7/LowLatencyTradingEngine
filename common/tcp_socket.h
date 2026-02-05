@@ -14,6 +14,8 @@ namespace Common {
     constexpr size_t TCPBufferSize = 64 * 1024 * 1024; // 64 mb
 
     struct TCPSocket {
+        // constructor only initalizes the data buffers
+        // actual socket created in connect function
         explicit TCPSocket(Logger &logger) : logger_(logger) {
             outbound_data_.resize(TCPBufferSize);
             inbound_data_.resize(TCPBufferSize);

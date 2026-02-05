@@ -23,3 +23,6 @@ Socket:
 
 Server:
 - has list of sockets to receive from and send to
+- send_sockets -> sockets which are ready to receive data from us 
+- recv_sockets -> sockets which have data for us to read
+- epoll events array to store any new events returned by epoll wait 

@@ -65,6 +65,16 @@ namespace Common {
             recv_callback_(this, kernel_time);
         }
 
+        // handing EPOLLERRR / EPOLLHUP
+        if (read_size == 0 || (read_size < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+             logger_.log("%:% %() % socket:% disconnected or errored, read_size:% errno:%\n", 
+                    __FILE__, __LINE__, __FUNCTION__, 
+                    Common::getCurrentTimeStr(&time_str_), socket_fd_, read_size, strerror(errno));
+            close(socket_fd_);
+            socket_fd_ = -1;
+            return false;
+        }
+
         // sending data 
         if(next_send_valid_index_ > 0) {
             // sending data from the start of the outbound data buffer to next send index
