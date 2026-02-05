@@ -6,8 +6,12 @@
 #include "logging.h"
 using namespace std;
 
+// client, server terms only describe who initiates the connection 
+// server -> bind, listen, accept, client -> connect
+// both can send and receive data 
+
 namespace Common {
-    constexpr size_t TCPBufferSize = 64 * 1024 * 1024;
+    constexpr size_t TCPBufferSize = 64 * 1024 * 1024; // 64 mb
 
     struct TCPSocket {
         explicit TCPSocket(Logger &logger) : logger_(logger) {
@@ -34,7 +38,9 @@ namespace Common {
         vector<char> inbound_data_;
         size_t next_rcv_valid_index_ = 0;
 
-        struct sockaddr_in socket_attrib_{};
+        // used as output param in recvmsg(), gets filled with info about whoever sent the data 
+        struct sockaddr_in socket_attrib_{}; // store socket address information
+        // user defined function when data arrives
         function<void(TCPSocket *s, Nanos rx_time)> recv_callback_ = nullptr;
 
         string time_str_;

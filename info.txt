@@ -1,0 +1,25 @@
+- function forwarding in thread_utils
+
+Info:
+
+Lock free queue
+- underlying data structure -> vector<T>
+- Get next read function returns the actual object at next read index
+
+Mem Pool:
+- underlying data structure -> vector<ObjectBlock>
+
+Socket:
+- disable nagle -> ip protocol level 
+- timestamp -> socket level 
+- join multicast ->ip protocol level 
+- reuse addr -> socket level
+- socket() function takes as params -> family, socket type, protocol
+
+- underlying data structure -> vector<char>, one for inbound data, one for outbound data
+- send function loads data into outbound buffer
+- sendAndRecv functions receives all data, and sends all queued data 
+- callback function called after data is received, only takes the timestamp
+
+Server:
+- has list of sockets to receive from and send to

@@ -21,6 +21,12 @@
 #include "logging.h"
 using namespace std;
 
+// socket creation -> 
+// 1. setup flags, then pass it to hints {flags, family, stream, protocol}
+// 2. pass it to getaddrinfo(ip, port, hints) -> populates with addrinfo link list
+// 3. configure options -> disable nagle, set non blocking, listeni etc.
+// 4. server -> bind + listen, client -> connect
+
 namespace Common {
     struct SocketCfg{
         string ip_; // address of device on network to connect to   
@@ -138,7 +144,7 @@ namespace Common {
                 ASSERT(disableNagle(socket_fd), "disableNagle() failed. errno:" + std::string(strerror(errno)));
             }
 
-            // if not server then connect to given ip
+            // if not server then connect to given ip_
             if(!socket_cfg.is_listening_) {
                 ASSERT(connect(socket_fd, rp->ai_addr, rp->ai_addrlen), "connect() failed. errno:" + std::string(strerror(errno)));
             }
@@ -148,16 +154,21 @@ namespace Common {
                 ASSERT(setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<void *>(&one), sizeof(one))!=-1, "setsockopt() SO_REUSEADDR failed. errno:" + std::string(strerror(errno)));
             }
 
+            // ip_ represents the address where you listen to if you are a server
+            // ip_ represents the address of the server you want to connect to if you are a client
             if(socket_cfg.is_listening_) {
-                const sockaddr_in addr{
+                const sockaddr_in addr{ // where to listen to (we are server)
                     AF_INET,
                     htons(socket_cfg.port_),
                     {htonl(INADDR_ANY)}, {}
                 };
                 ASSERT(bind(socket_fd, socket_cfg.is_udp_ ? reinterpret_cast<const struct sockaddr *>(&addr) : rp->ai_addr, sizeof(addr))==0, "bind() failed. errno:%" + std::string(strerror(errno)));
+                // bind the socket to given port 
             }
 
             if(!socket_cfg.is_udp_ && socket_cfg.is_listening_) {
+                // passively listening for new connections all the time (kernel in background)
+                // adds it to the queue 
                 ASSERT(listen(socket_fd, MaxTCPServerBacklog)==0, "listen() failed. errno:" + std::string(strerror(errno)));
             }
 
