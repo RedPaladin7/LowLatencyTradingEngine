@@ -35,6 +35,7 @@ namespace Exchange {
     auto MatchingEngine::start() -> void {
         // start matching engine on new thread
         run_ = true;
+        // creates a new thread and the main event loop runs there: run()
         ASSERT(Common::createAndStartThread(-1, "Exchange/MatchingEngine", [this](){run();}) != nullptr, "Failed to start MatchingEngine thread.");
     }
 

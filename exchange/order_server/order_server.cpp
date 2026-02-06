@@ -3,6 +3,9 @@
 namespace Exchange {
     OrderServer::OrderServer(ClientRequestLFQueue *client_requests, ClientResponseLFQueue *client_responses, const string &iface, int port)
     : iface_(iface), port_(port), outgoing_responses_(client_responses), logger_("exchange_order_server.log"), tcp_server_(logger_), fifo_sequencer_(client_requests, &logger_) {
+        // list of client responses given to constructor -> populates the outgoing_responses_
+        // list of client_requests given to constructor -> passed on to the fifo sequencer
+        // initially all the sequence numbers are 1
         cid_next_outgoing_seq_num_.fill(1);
         cid_next_exp_seq_num_.fill(1);
         cid_tcp_socket_.fill(nullptr);
@@ -20,8 +23,10 @@ namespace Exchange {
 
     auto OrderServer::start() -> void {
         run_ = true;
+        // start listening for new connections on the given port 
         tcp_server_.listen(iface_, port_);
 
+        // run() which is the main loop of order_server, runs on a new thread
         ASSERT(Common::createAndStartThread(-1, "Exchange/OrderServer", [this]() {run();}) != nullptr, "Failed to start OrderServer thread");
     }
 
