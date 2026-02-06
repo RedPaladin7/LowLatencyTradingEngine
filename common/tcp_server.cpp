@@ -4,6 +4,9 @@ using namespace std;
 // epoll -> monitoring multiple file descriptors to see if IO operations are possible on any of them
 // adding for epoll monitoring -> keep an eye on the socket for any events
 
+// poll -> check activity at that instance
+// sendAndRecv -> resolve sending and accepting data 
+
 namespace Common {
     auto TCPServer::addToEpollList(TCPSocket *socket) { 
         epoll_event ev {
@@ -53,6 +56,8 @@ namespace Common {
         });
     }
 
+    // checks which socket have activity and organizes them for processing 
+    // at the given instance poll is called
     auto TCPServer::poll() noexcept -> void {
         const int max_events = 1 + send_sockets_.size() + receive_sockets_.size();
 
@@ -104,17 +109,23 @@ namespace Common {
                 sockaddr_storage addr;
                 socklen_t addr_len = sizeof(addr);
                 // accept the new connection, from our listener socket file descriptor
+                // new socket fd, representing our connection with that client 
                 int fd = accept(listener_socket_.socket_fd_, reinterpret_cast<sockaddr *>(&addr), &addr_len);
                 if(fd == -1) break;
 
+                // set socket configs
                 ASSERT(setNonBlocking(fd) && disableNagle(fd), "Failed to set non-blocking or no-delay on socket:" + to_string(fd));
                 logger_.log("%:% %() % accepted socket:%\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), fd);
 
+                // create a new socket and assign it the socket fd obtained from accept() call
                 auto socket = new TCPSocket(logger_);
                 socket->socket_fd_ = fd;
+                // gets copy of server's recv_callback function 
                 socket->recv_callback_ = recv_callback_;
+                // start monitoring this socket 
                 ASSERT(addToEpollList(socket), "Unable to add socket. error:" + std::string(std::strerror(errno)));
 
+                // by default add it to receive sockets
                 if(find(receive_sockets_.begin(), receive_sockets_.end(), socket) == receive_sockets_.end()){
                     receive_sockets_.push_back(socket);
                 }

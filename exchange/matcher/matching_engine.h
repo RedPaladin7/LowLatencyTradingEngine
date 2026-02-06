@@ -32,8 +32,10 @@ namespace Exchange {
         MatchingEngine &operator=(const MatchingEngine &&) = delete;
 
         auto processClientRequest(const MEClientRequest *client_request) noexcept {
+            // get the order book for mentioned ticker 
             auto order_book = ticker_order_book_[client_request->ticker_id_];
             switch(client_request->type_){
+                // process based on request for new order or cancel order
                 case ClientRequestType::NEW: {
                     order_book->add(client_request->client_id_, client_request->order_id_, client_request->ticker_id_, client_request->side_, client_request->price_, client_request->qty_);
                 }
@@ -51,8 +53,11 @@ namespace Exchange {
 
         auto sendClientResponse(const MEClientResponse *client_response) noexcept {
             logger_.log("%:% %() % Sending %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), client_response->toString());
+            // write to next available write index
             auto next_write = outgoing_ogw_responses_->getNextToWriteTo();
+            // move to const reference so same as copy
             *next_write = move(*client_response);
+            // update the write index (essentially just +1 circular)
             outgoing_ogw_responses_->updateWriteIndex();
         }
 
@@ -81,6 +86,7 @@ namespace Exchange {
         ClientResponseLFQueue *outgoing_ogw_responses_ = nullptr;
         MEMarketUpdateLFQueue *outgoing_md_updates_ = nullptr;
 
+        // value always read from memory, no caching
         volatile bool run_ = false;
 
         string time_str_;

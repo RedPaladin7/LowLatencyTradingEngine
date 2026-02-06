@@ -8,6 +8,7 @@ namespace Exchange {
     MEOrderBook::~MEOrderBook() {
         logger_->log("%:% %() % OrderBook\n%\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
                 toString(false, true));
+        // remove pointer to matching engine, set entry points to nullptr
         matching_engine_ = nullptr;
         bids_by_price_ = asks_by_price_ = nullptr;
         for (auto &itr: cid_oid_to_order_) {
@@ -16,13 +17,16 @@ namespace Exchange {
     }
 
     auto MEOrderBook::match(TickerId ticker_id, ClientId client_id, Side side, OrderId client_order_id, OrderId new_market_order_id, MEOrder *itr, Qty *leaves_qty) noexcept {
+        // fetch info of the order that is going to be filled
         const auto order = itr;
         const auto order_qty = order->qty_; 
         const auto fill_qty = min(order_qty, *leaves_qty); 
 
+        // update the actuall qty that will be filled for both clients
         *leaves_qty -= fill_qty; 
         order->qty_ -= fill_qty;
 
+        // send reponse to client who filled the order
         client_response_ = {
             ClientResponseType::FILLED, 
             client_id, 
@@ -36,6 +40,7 @@ namespace Exchange {
         };
         matching_engine_->sendClientResponse(&client_response_);
 
+        // send response to client whose order was filled
         client_response_ = {
             ClientResponseType::FILLED, 
             order->client_id_,
@@ -49,6 +54,7 @@ namespace Exchange {
         };
         matching_engine_->sendClientResponse(&client_response_);
 
+        // send market update
         market_update_ = {
             MarketUpdateType::TRADE,
             OrderId_INVALID,
@@ -61,6 +67,7 @@ namespace Exchange {
         matching_engine_->sendMarketUpdate(&market_update_);
 
         if(!order->qty_) {
+            // the order was completely filled
             market_update_ = {
                 MarketUpdateType::CANCEL,
                 order->market_order_id_,
@@ -71,6 +78,7 @@ namespace Exchange {
                 Priority_INVALID
             };
             matching_engine_->sendMarketUpdate(&market_update_);
+            // remove the order from the orderbook
             removeOrder(order);
         } else {
             market_update_ = {
@@ -89,9 +97,14 @@ namespace Exchange {
     auto MEOrderBook::checkForMatch(ClientId client_id, OrderId client_order_id, TickerId ticker_id, Side side, Price price, Qty qty, Qty new_market_order_id) noexcept {
         auto leaves_qty = qty; 
 
+        // keep filling the order as long as it is within the price range
+        // return the remaining qty, so new order can be added in the orderbook if it is not zero
         if(side == Side::BUY){
+            // iterate until you have leave qty and there are asks
             while(leaves_qty && asks_by_price_) {
+                // get the best ask
                 const auto ask_itr = asks_by_price_->first_me_order_;
+                // if no match, return leave qty as it is
                 if(LIKELY(price < ask_itr->price_)){
                     break;
                 }
@@ -99,8 +112,11 @@ namespace Exchange {
             }
         }
         if(side == Side::SELL) {
+            // iterate until you have leave qty and there are bids
             while(leaves_qty && bids_by_price_) {
+                // get the best bid
                 const auto bid_itr = bids_by_price_->first_me_order_;
+                // if not match, return leave qty as it is
                 if(LIKELY(price > bid_itr->price_)) {
                     break;
                 }
@@ -112,6 +128,7 @@ namespace Exchange {
 
     auto MEOrderBook::add(ClientId client_id, OrderId client_order_id, TickerId ticker_id, Side side, Price price, Qty qty) noexcept -> void {
         const auto new_market_order_id = generateNewMarketOrderId(); 
+        // send immediate acknowledgment to client, that their order was accepted
         client_response_ = {
             ClientResponseType::ACCEPTED, 
             client_id,
@@ -123,13 +140,17 @@ namespace Exchange {
             qty
         };
         matching_engine_->sendClientResponse(&client_response_);
+        // check how much quantity is remaining after matching
         const auto leaves_qty = checkForMatch(client_id, client_order_id, ticker_id, side, price, qty, new_market_order_id);
 
         if(LIKELY(leaves_qty)) {
+            // some quantity yet to be filled 
             const auto priority = getNextPriority(price);
+            // create new passive order and add that to the orderbook 
             auto order = order_pool_.allocate(ticker_id, client_id, client_order_id, new_market_order_id, side, price, leaves_qty, priority, nullptr, nullptr);
             addOrder(order);
 
+            // send market update that an order has been added 
             market_update_ = {
                 MarketUpdateType::ADD,
                 new_market_order_id,
@@ -144,14 +165,17 @@ namespace Exchange {
     }
 
     auto MEOrderBook::cancel(ClientId client_id, OrderId order_id, TickerId ticker_id) noexcept -> void {
+        // check for valid client id
         auto is_cancelable = (client_id < cid_oid_to_order_.size()); 
         MEOrder *exchange_order = nullptr; 
         if(LIKELY(is_cancelable)) {
+            // check if the order is valid 
             auto &co_itr = cid_oid_to_order_.at(client_id);
             exchange_order = co_itr.at(order_id);
             is_cancelable = (exchange_order != nullptr);
         }
         if(UNLIKELY(!is_cancelable)) {
+            // send message for cancel reject
             client_response_ = {
                 ClientResponseType::CANCEL_REJECTED,
                 client_id,
@@ -164,6 +188,7 @@ namespace Exchange {
                 Qty_INVALID
             };
         } else {
+            // successful cancel, send market update and client update 
             client_response_ = {
                 ClientResponseType::CANCELED,
                 client_id,

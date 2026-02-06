@@ -19,6 +19,7 @@ namespace Common {
 
         public:
         int epoll_fd_ = -1;
+        // only job of listener socket is to accept new connections
         TCPSocket listener_socket_;
 
         epoll_event events_[1024];

@@ -7,10 +7,17 @@
 using namespace std;
 using namespace Common; 
 
+// struct to define single order in orderbook
+// hashmap implented using array -> memory address used as keys (converted using index function)\
+// assign all space at once -> maybe sparse
+// hence we have pointers to prev and next entries 
+
 namespace Exchange {
     struct MEOrder {
         TickerId ticker_id_ = TickerId_INVALID;
         ClientId client_id_ = ClientId_INVALID;
+        // client order id to identify order on client side, may not be for the market side 
+        // market order id to identify order on market side, completely unique, assigned by matcher
         OrderId client_order_id_ = OrderId_INVALID;
         OrderId market_order_id_ = OrderId_INVALID;
         Side side_ = Side::INVALID;
@@ -18,6 +25,8 @@ namespace Exchange {
         Qty qty_ = Qty_INVALID;
         Priority priority_ = Priority_INVALID;
 
+        // circular doubly linked list
+        // points to prev and next order at the same price level 
         MEOrder *prev_order_ = nullptr;
         MEOrder *next_order_ = nullptr;
 
@@ -31,13 +40,18 @@ namespace Exchange {
     };
 
     typedef array<MEOrder *, ME_MAX_ORDER_IDS> OrderHashMap;
+    // 2d array, client -> array of order for that client 
     typedef array<OrderHashMap, ME_MAX_NUM_CLIENTS> ClientOrderHashMap;
 
+    // represent orders at the same price level 
     struct MEOrdersAtPrice {
         Side side_ = Side::INVALID;
         Price price_ = Price_INVALID;
 
+        // entry point to the best bid or ask at that price level 
         MEOrder *first_me_order_ = nullptr; 
+        // also circular doubly linked list 
+        // has pointers to next and prev price levels 
         MEOrdersAtPrice *prev_entry_ = nullptr;
         MEOrdersAtPrice *next_entry_ = nullptr;
 
@@ -58,5 +72,6 @@ namespace Exchange {
         }
     };
 
+    // price to orders at that price
     typedef array<MEOrdersAtPrice *, ME_MAX_PRICE_LEVELS> OrdersAtPriceHashMap;
 }

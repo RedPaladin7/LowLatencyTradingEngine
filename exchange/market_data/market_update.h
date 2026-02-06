@@ -7,6 +7,9 @@
 using namespace std;
 using namespace Common; 
 
+// message for market data publisher to market data consumer 
+// no padding, fields are packed consecutively -> predictable size, same layout everywhere
+
 namespace Exchange {
 #pragma pack(push, 1)
 
@@ -46,6 +49,10 @@ namespace Exchange {
     struct MEMarketUpdate {
         MarketUpdateType type_ = MarketUpdateType::INVALID;
 
+        // does not client id, that is private for the client 
+        // whether the order was filled for a specific instrument: 
+        // message will only go to that client 
+        // this is general message showing the changes in the orderbook
         OrderId order_id_ = OrderId_INVALID;
         TickerId ticker_id_ = TickerId_INVALID;
         Side side_ = Side::INVALID;
@@ -69,6 +76,8 @@ namespace Exchange {
         }
     };
 
+    // also inclusion of sequence number for packet tracking
+    // make sure all packets arrive in order
     struct MDPMarketUpdate{
         size_t seq_num_ = 0;
         MEMarketUpdate me_market_update_;

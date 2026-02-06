@@ -169,6 +169,7 @@ namespace Common {
             if(!socket_cfg.is_udp_ && socket_cfg.is_listening_) {
                 // passively listening for new connections all the time (kernel in background)
                 // adds it to the queue 
+                // it can have max 1024 pending connection requests at once
                 ASSERT(listen(socket_fd, MaxTCPServerBacklog)==0, "listen() failed. errno:" + std::string(strerror(errno)));
             }
 
