@@ -1,0 +1,72 @@
+Complete workflow -> eg: Client sends request {buy 100 APPL stocks @ 50} (not including the market publishing part)
+
+Setup: 3 lock-free queues
+All 3 components (order_server, matching_engine, market_publisher) share the same 3 queues
+
+client_requests: order_server -> matching engine 
+client_responses: matching_engine -> order_server 
+market_updates: matching_engine -> market_publisher
+
+Context:
+
+order_server is created, start is called 
+listen() is called, server starts listening at given iface and port 
+new thread is created and run() is called on that (even loop)
+poll() -> populates events_ array, which in turn populates send_sockets_ and receive_sockets_  (both are empty for now)
+sendAndRecv() -> does nothing both array above are empty 
+loops over client_responses is empty so does nothing 
+
+Phase 1: Client request comes in 
+
+poll() -> EPOLLIN event on client socket, adds to receive_sockets_
+sendAndRecv() -> TCPSocket::sendAndRecv() is called, recvmsg() is called
+inbound_data_ is populated and recv_callback_() is called
+OrderServer::recvCallback() is called 
+get socket->next_rcv_valid_index_, points to data where inbound_data_ vector was populated 
+get OMClientRequest, add socket to cid_tcp_socket_ hashmap
+check if the sequence number is correct, then forward it to fifo_sequencer, fifo_sequencer::addClientRequest() is called 
+next_rcv_valid_index_ is updated 
+create a RecvTimeClientRequest object and store it in the pending requests queue 
+
+State after Phase 1: 
+all 3 lock free queues are empty, pending requests queue has one request which our client sent 
+
+Phase 2: Sequencing 
+TCPSocket::sendAndRecv() successfully received data, so TCPServer::recv_finished_callback() is called, which is the same as OrderServer::recv_finished_callback() 
+fifo_sequencer::sequenceAndPublish() is called 
+requests in the pending array are sorted based on their timestamps
+now from the sorted pending_requests array, client_requests lock free queue is populated 
+note that the fifo_sequencer received OMClientRequest, it forwarded MEClientRequest in sorted order to the queue 
+pending_size_ parameter is reset 
+
+State after Phase 2: 
+client_responses, market_updates, pending_requests queues are empty, client_requests queue has one entry (our order)
+
+Phase 3: Matching the order 
+Matching engine was started before, and on a new thread run() is called 
+in matching_engine::run(), client_requests queue is constantly being monitored, notices that a new entry has been added 
+matching_engine::processClientRequest() is called 
+gets the correct order book for the ticker, switches on the request type 
+order_book::add() is called, generates new market order id, sends acknowledgment
+order_book::checkForMatch() is called, order gets completely filled, so if condition with leaves_qty is not called (new entry is not added to the orderbook)
+in the order_book::match() function, order qty and leaves qty for the aggressor order and other client order is updated 
+matching_engine::sendClientResponse() is called twice, once for the client who filled the order and one for client whose order was filled 
+matc
+matching_engine::sendMarketUpdate() is called twice, one to show trade and one to show modify order
+
+State after Phase 3: 
+client_responses and market_updates array have 2 entries each
+client_requests array is empty 
+
+Phase 4: 
+in order_server::run() is constantly checking the client_responses array, which now has data to send
+it iterates over each entry in the array, checks the expected sequence number and sends them 
+send() call doesn't send immediately, it adds data to the oubound_data_ array of the socket 
+data will be sent when next order_server::sendAndRecv() will be called. 
+client receives the data
+
+
+
+
+
+

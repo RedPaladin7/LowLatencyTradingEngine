@@ -65,10 +65,59 @@ namespace Exchange {
     }
 
     auto SnapshotSynthesizer::publishSnapshot() {
+        size_t snapshot_size = 0;
+        const MDPMarketUpdate start_market_update{snapshot_size++, {
+            MarketUpdateType::SNAPSHOT_START,
+            last_inc_seq_num_
+        }};
+        // log
+        snapshot_socket_.send(&start_market_update, sizeof(MDPMarketUpdate));
 
+        for(size_t ticker_id = 0; ticker_id < ticker_orders_.size(); ++ticker_id) {
+            const auto &orders = ticker_orders_.at(ticker_id);
+
+            MEMarketUpdate me_market_update;
+            me_market_update.type_ = MarketUpdateType::CLEAR;
+            me_market_update.ticker_id_ = ticker_id;
+
+            const MDPMarketUpdate clear_market_update{snapshot_size++, me_market_update};
+            // log 
+            snapshot_socket_.send(&clear_market_update, sizeof(MDPMarketUpdate));
+
+            for(const auto order: orders) {
+                if (order) {
+                    const MDPMarketUpdate market_update{snapshot_size++, *order};
+                    // log 
+                    snapshot_socket_.send(&market_update, sizeof(MDPMarketUpdate));
+                    snapshot_socket_.sendAndRecv();
+                }
+            }
+        }
+
+        const MDPMarketUpdate end_market_update{snapshot_size++, {
+            MarketUpdateType::SNAPSHOT_END,
+            last_inc_seq_num_
+        }};
+        // log 
+        snapshot_socket_.send(&end_market_update, sizeof(MDPMarketUpdate));
+        snapshot_socket_.sendAndRecv();
+
+        // log
     }
 
     void SnapshotSynthesizer::run() {
+        // log 
+        while(run_) {
+            for(auto market_update = snapshot_md_updates_->getNextToRead(); snapshot_md_updates_->size() && market_update; market_update = snapshot_md_updates_->getNextToRead()){
+                // log 
+                addToSnapshot(market_update);
+                snapshot_md_updates_->updateReadIndex();
+            }
 
+            if(getCurrentNanos() - last_snapshot_time_ > 60 * NANOS_TO_SECS) {
+                last_snapshot_time_ = getCurrentNanos();
+                publishSnapshot();
+            }
+        }
     }
 }

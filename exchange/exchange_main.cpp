@@ -1,81 +1,66 @@
 #include <csignal>
-#include <iostream>
+
 #include "matcher/matching_engine.h"
+#include "market_data/market_data_publisher.h"
+#include "order_server/order_server.h"
 
 using namespace std;
 
-Common::Logger* logger = nullptr;
-Exchange::MatchingEngine* matching_engine = nullptr;
+Common::Logger *logger = nullptr;
+Exchange::MatchingEngine *matching_engine = nullptr;
+Exchange::MarketDataPublisher *market_data_publisher = nullptr;
+Exchange::OrderServer *order_server = nullptr;
 
-// Clean shutdown handler
 void signal_handler(int) {
-    cout << "Shutting down..." << endl;
-    if (matching_engine) {
-        matching_engine->stop();
-        delete matching_engine;
-    }
-    if (logger) delete logger;
+    using namespace literals::chrono_literals;
+    this_thread::sleep_for(10s);
+
+    delete logger;
+    logger = nullptr;
+    delete matching_engine;
+    matching_engine = nullptr;
+    delete market_data_publisher;
+    market_data_publisher = nullptr;
+    delete order_server;
+    order_server = nullptr;
+
+    this_thread::sleep_for(10s);
     exit(EXIT_SUCCESS);
 }
 
-int main(int, char**) {
+int main(int, char **) {
     logger = new Common::Logger("exchange_main.log");
-    signal(SIGINT, signal_handler);
 
-    // Initialize Lock-Free Queues
+    signal(SIGINT, signal_handler);
+    const int sleep_time = 100 * 1000;
+
     Exchange::ClientRequestLFQueue client_requests(ME_MAX_CLIENT_UPDATES);
     Exchange::ClientResponseLFQueue client_responses(ME_MAX_CLIENT_UPDATES);
     Exchange::MEMarketUpdateLFQueue market_updates(ME_MAX_MARKET_UPDATES);
 
-    // 1. Start the Matching Engine (spawns the background thread)
+    string time_str;
+
+    // log 
     matching_engine = new Exchange::MatchingEngine(&client_requests, &client_responses, &market_updates);
     matching_engine->start();
 
-    string time_str;
-    logger->log("%:% %() % Matching Engine Started. Injecting test orders...\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
+    const string mkt_pub_iface = "lo";
+    const string snap_pub_ip = "233.252.14.1", inc_pub_ip = "233.252.14.3";
+    const int snap_pub_port = 20000, inc_pub_port = 20001;
 
-    // 2. Inject a BUY order
-    auto* req1 = client_requests.getNextToWriteTo();
-    req1->type_ = Exchange::ClientRequestType::NEW;
-    req1->client_id_ = 1;
-    req1->ticker_id_ = 1;
-    req1->order_id_ = 1001;
-    req1->side_ = Common::Side::BUY;
-    req1->price_ = 500;
-    req1->qty_ = 100;
-    client_requests.updateWriteIndex();
+    // log 
+    market_data_publisher = new Exchange::MarketDataPublisher(&market_updates, mkt_pub_iface, snap_pub_ip, snap_pub_port, inc_pub_ip, inc_pub_port);
+    market_data_publisher->start();
 
-    // 3. Inject a matching SELL order
-    auto* req2 = client_requests.getNextToWriteTo();
-    req2->type_ = Exchange::ClientRequestType::NEW;
-    req2->client_id_ = 2;
-    req2->ticker_id_ = 1;
-    req2->order_id_ = 2001;
-    req2->side_ = Common::Side::SELL;
-    req2->price_ = 500; // Match price
-    req2->qty_ = 100;
-    client_requests.updateWriteIndex();
+    const string order_gw_iface = "lo";
+    const int order_gw_port = 12345;
 
-    // 4. Monitor the response queue in the main thread
-    // This simulates what an Order Gateway would do
-    while (true) {
-        // Check for responses (FILLED, ACCEPTED, etc.)
-        const auto* response = client_responses.getNextToRead();
-        if (response) {
-            cout << "CLIENT RESPONSE: " << response->toString() << endl;
-            client_responses.updateReadIndex();
-        }
+    // log 
+    order_server = new Exchange::OrderServer(&client_requests, &client_responses, order_gw_iface, order_gw_port);
+    order_server->start();
 
-        // Check for market updates (ADD, TRADE, etc.)
-        const auto* mkt_update = market_updates.getNextToRead();
-        if (mkt_update) {
-            cout << "MARKET UPDATE: " << mkt_update->toString() << endl;
-            market_updates.updateReadIndex();
-        }
-
-        // Small sleep to prevent 100% CPU usage in this monitor loop
-        usleep(1000); 
+    while(true) {
+        // log 
+        usleep(sleep_time * 1000);
     }
-
-    return 0;
 }
