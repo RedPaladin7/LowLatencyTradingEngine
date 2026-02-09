@@ -95,7 +95,7 @@ namespace Common {
     }
 
     // joins multicast group -> one sender, many recv
-    // sender sends one packet to multicast address, network duplicated and sends to all subscribers
+    // sender sends one packet to multicast address, network duplicatea and sends to all subscribers
     inline auto join(int fd, const string &ip) -> bool {
         const ip_mreq mreq{
             {inet_addr(ip.c_str())}, // the multicast group to join

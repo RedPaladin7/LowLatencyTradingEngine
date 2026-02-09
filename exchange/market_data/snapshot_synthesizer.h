@@ -38,14 +38,19 @@ namespace Exchange {
         SnapshotSynthesizer &operator=(const SnapshotSynthesizer &&) = delete;
 
     private:
+        // queue of updates shared between market_data_publisher and us 
+        // mdp will write to the queue and we will read from the queue
         MDPMarketUpdateLFQueue *snapshot_md_updates_ = nullptr;
 
         Logger logger_;
         volatile bool run_ = false;
         string time_str_;
 
+        // we are the producer in the multicast group 
+        // send messages to anyone who subscribes to the snapshot_synthesizer 
         McastSocket snapshot_socket_;
 
+        // array of orders for each ticker 
         array<array<MEMarketUpdate *, ME_MAX_ORDER_IDS>, ME_MAX_ORDER_IDS> ticker_orders_;
         size_t last_inc_seq_num_ = 0;
         Nanos last_snapshot_time_ = 0;

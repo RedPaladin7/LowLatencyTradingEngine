@@ -55,7 +55,7 @@ matc
 matching_engine::sendMarketUpdate() is called twice, one to show trade and one to show modify order
 
 State after Phase 3: 
-client_responses and market_updates array have 2 entries each
+client_responses has 3 entries and market_updates has 2 entries
 client_requests array is empty 
 
 Phase 4: 

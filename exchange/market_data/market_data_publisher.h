@@ -33,7 +33,9 @@ namespace Exchange {
     
     private: 
         size_t next_inc_seq_num_ = 1;
+        // incremental messages going to the clients through udp
         MEMarketUpdateLFQueue *outgoing_md_updates_ = nullptr;
+        // same information being sent to the snapshot synthesizer (will be read through the shared queue)
         MDPMarketUpdateLFQueue snapshot_md_updates_;
         
         volatile bool run_ = false;

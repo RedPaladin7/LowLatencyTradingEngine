@@ -21,6 +21,9 @@ Socket:
 - sendAndRecv functions receives all data, and sends all queued data 
 - callback function called after data is received, only takes the timestamp
 
+Mcast Socket:
+- also has inbound_data_ and outbound_data_ vectors 
+
 Server:
 - has list of sockets to receive from and send to
 - send_sockets -> sockets which are ready to receive data from us 
