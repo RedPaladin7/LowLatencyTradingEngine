@@ -7,6 +7,8 @@
 #include "macros.h"
 using namespace std;
 
+// "/common/lf_queue.h"
+
 // Lock free circular queue, using standard locks is too slow
 // read, write index, number of elements are all atomic<size_t>
 

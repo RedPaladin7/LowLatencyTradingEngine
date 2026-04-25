@@ -10,6 +10,8 @@
 #include "time_utils.h"
 using namespace std;
 
+// "/common/logging.h"
+
 // Pushes data into lock free queue, disk writing IO operation done by seperate thread
 
 namespace Common {
